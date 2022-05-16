@@ -7,7 +7,7 @@ The rule format should be the following:
     <src IP address> <src port> <dst IP address> <dst port> “ALERT”
 
 Each rule should be separeted by new line.
-End file with a new line
+End file with a new line.
 
 For example:
 
