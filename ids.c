@@ -2,31 +2,15 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <netinet/in.h>
-#include <netinet/ip.h>
-#include <net/if.h>
-#include <netinet/if_ether.h>
 #include <net/ethernet.h>
+#include <netinet/ip.h>
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
-#include <arpa/inet.h>
-
 
 #include <pcap.h>
 
 #define PCAP_BUF_SIZE	1024
 #define PCAP_SRC_FILE	2
-
-int icmpCount = 0;
-int tcpCount = 0;
-int udpCount = 0;
-int dnsCount = 0;
-int synCount[PCAP_BUF_SIZE];
-int synIdx = 0;
-char synIP[PCAP_BUF_SIZE][INET_ADDRSTRLEN];
-int httpCount[PCAP_BUF_SIZE];
-int httpIdx = 0;
-char httpIP[PCAP_BUF_SIZE][INET_ADDRSTRLEN];
 
 void packetHandler(u_char *userData, const struct pcap_pkthdr* pkthdr, const u_char* packet);
 
@@ -34,11 +18,9 @@ int main(int argc, char **argv) {
 
     pcap_t *fp;
     char errbuf[PCAP_ERRBUF_SIZE];
-    char source[PCAP_BUF_SIZE];
-    int i, maxCountSyn = 0, maxCountHttp = 0, maxIdxSyn = 0, maxIdxHttp = 0;
+    int i;
     char lines[300][5][2048] = { "0", "0", "0", "0", "0" };
-    int tot = 0;
-    char line[1024];
+    char line[8192];
 
     if(argc != 3) {
         printf("usage: %s <.pcap> <.txt> \n", argv[0]);
@@ -80,24 +62,6 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    for (i = 0; i < synIdx; i++) {
-        if (maxCountSyn < synCount[i]) {
-            maxCountSyn = synCount[i];
-            maxIdxSyn = i;
-        }
-    }
-
-    for (i = 0; i < httpIdx; i++) {
-        if (maxCountHttp < httpCount[i]) {
-            maxCountHttp = httpCount[i];
-            maxIdxHttp = i;
-        }
-    }
-
-    printf("Protocol Summary: %d ICMP packets, %d TCP packets, %d UDP packets\n", icmpCount, tcpCount, udpCount);
-    printf("DNS Summary: %d packets.\n", dnsCount);
-    printf("IP address sending most SYN packets: %s\n", synIP[maxIdxSyn]);
-    printf("IP address that most HTTP/HTTPS traffic goes to (in terms of bandwidth, NOT packet count): %s\n", httpIP[maxIdxHttp]);
     return 0;
 
 }
@@ -112,8 +76,6 @@ void packetHandler(u_char *userData, const struct pcap_pkthdr* pkthdr, const u_c
     char sourceIP[INET_ADDRSTRLEN];
     char destIP[INET_ADDRSTRLEN];
     u_int sourcePort, destPort;
-    u_char *data;
-    int dataLength = 0;
     int k = 0;
     int i;
     char *sourcePort_toString = malloc (6);
@@ -165,9 +127,10 @@ void packetHandler(u_char *userData, const struct pcap_pkthdr* pkthdr, const u_c
                                     printf("ALERT: %s\n", lines[k][4]);
                                 }
                             }
-                        } else if (ipHeader->ip_p == IPPROTO_ICMP) {
-                            //TODO
-                        }
+                        } 
+                        // else if (ipHeader->ip_p == IPPROTO_ICMP) {
+                            
+                        // }
                     }
                 }
 
