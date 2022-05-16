@@ -67,18 +67,6 @@ int main(int argc, char **argv) {
         strcpy(lines[i][4], ptr5);
         i++;
     }
-
-    // tot=i;
-
-    // for (int i=0;i<tot;i++)
-    // {
-    //     printf("first value %s\n", lines[i][0]);
-    //     printf("second value is %s\n", lines[i][1]);
-    //     printf("third value %s\n", lines[i][2]);
-    //     printf("fourth value is %s\n", lines[i][3]);
-    //     printf("fiveth value is %s\n", lines[i][4]);
-    //     printf("\n");
-    // }
     
     fp = pcap_open_offline(argv[1], errbuf);
     if (fp == NULL) {
@@ -87,7 +75,7 @@ int main(int argc, char **argv) {
     }
 
 
-    if (pcap_loop(fp, 100, packetHandler, (u_char*)&lines) < 0) {
+    if (pcap_loop(fp, 0, packetHandler, (u_char*)&lines) < 0) {
         fprintf(stderr, "\npcap_loop() failed: %s\n", pcap_geterr(fp));
         return 0;
     }
@@ -128,8 +116,8 @@ void packetHandler(u_char *userData, const struct pcap_pkthdr* pkthdr, const u_c
     int dataLength = 0;
     int k = 0;
     int i;
-    char *tcpSourcePort = malloc (6);
-    char *tcpDestPort = malloc (6);
+    char *sourcePort_toString = malloc (6);
+    char *destPort_toString = malloc (6);
 
     ethernetHeader = (struct ether_header*)packet;
     if (ntohs(ethernetHeader->ether_type) == ETHERTYPE_IP) {
@@ -138,74 +126,52 @@ void packetHandler(u_char *userData, const struct pcap_pkthdr* pkthdr, const u_c
         inet_ntop(AF_INET, &(ipHeader->ip_src), sourceIP, INET_ADDRSTRLEN);
         inet_ntop(AF_INET, &(ipHeader->ip_dst), destIP, INET_ADDRSTRLEN);
 
-        if (ipHeader->ip_p == IPPROTO_TCP) {
-
-            tcpHeader = (struct tcphdr*)(packet + sizeof(struct ether_header) + sizeof(struct ip));
-
-            while(strcmp(lines[k][0], "0") == 1){
+            while(*lines[k][0]){
 
                 if(strcmp(lines[k][0], sourceIP) == 0){
 
                     if(strcmp(lines[k][2], destIP) == 0){
 
-                        sourcePort = (u_int) ntohs(tcpHeader->source);
-                        sprintf (tcpSourcePort, "%u", sourcePort);
+                        if (ipHeader->ip_p == IPPROTO_TCP) {
 
-                        if(strcmp(lines[k][1], tcpSourcePort) == 0){
+                            tcpHeader = (struct tcphdr*)(packet + sizeof(struct ether_header) + sizeof(struct ip));
+                            sourcePort = (u_int) ntohs(tcpHeader->source);
+                            sprintf(sourcePort_toString, "%u", sourcePort);
 
-                            destPort = (u_int) ntohs(tcpHeader->dest);
-                            sprintf (tcpDestPort, "%u", destPort);
+                            if(strcmp(lines[k][1], sourcePort_toString) == 0){
 
-                            if(strcmp(lines[k][3], tcpDestPort) == 0){
-                            
-                                printf("ALERT: %s\n", lines[k][4]);
+                                destPort = (u_int) ntohs(tcpHeader->dest);
+                                sprintf(destPort_toString, "%u", destPort);
+
+                                if(strcmp(lines[k][3], destPort_toString) == 0){
+
+                                    printf("ALERT: %s\n", lines[k][4]);
+                                }
                             }
+
+                        } else if (ipHeader->ip_p == IPPROTO_UDP) {
+
+                            udpHeader = (struct udphdr*)(packet + sizeof(struct ether_header) + sizeof(struct ip));
+                            sourcePort = (u_int) ntohs(udpHeader->source);
+                            sprintf(sourcePort_toString, "%u", sourcePort);
+                            
+                            if(strcmp(lines[k][1], sourcePort_toString) == 0){
+                                
+                                destPort = (u_int) ntohs(udpHeader->dest);
+                                sprintf(destPort_toString, "%u", destPort);
+
+                                if(strcmp(lines[k][3], destPort_toString) == 0){
+
+                                    printf("ALERT: %s\n", lines[k][4]);
+                                }
+                            }
+                        } else if (ipHeader->ip_p == IPPROTO_ICMP) {
+                            //TODO
                         }
                     }
                 }
 
                 k++;
             }
-
-            tcpCount = tcpCount + 1;
-            
-            sourcePort = ntohs(tcpHeader->source);
-            destPort = ntohs(tcpHeader->dest);
-            data = (u_char*)(packet + sizeof(struct ether_header) + sizeof(struct ip) + sizeof(struct tcphdr));
-            dataLength = pkthdr->len - (sizeof(struct ether_header) + sizeof(struct ip) + sizeof(struct tcphdr));
-            if (sourcePort == 80 || sourcePort == 443 || destPort == 80 || destPort == 443) {
-                for (i = 0; i < httpIdx; i++) {
-                    if (strcmp(destIP, httpIP[i]) == 0) {
-                        httpCount[i] = httpCount[i] + dataLength;
-                    }
-                }
-                strcpy(httpIP[httpIdx], destIP);
-                httpCount[httpIdx] = dataLength;
-                httpIdx = httpIdx + 1;
-            }
-
-            if (tcpHeader->th_flags & TH_SYN) {
-                for (i = 0; i < synIdx; i++) {
-                    if (strcmp(sourceIP, synIP[i]) == 0) {
-                        synCount[i] = synCount[i] + 1;
-                    }
-                }
-                strcpy(synIP[synIdx], sourceIP);
-                synCount[synIdx] = 1;
-                synIdx = synIdx + 1;
-            }
-
-        } else if (ipHeader->ip_p == IPPROTO_UDP) {
-            udpCount = udpCount + 1;
-            udpHeader = (struct udphdr*)(packet + sizeof(struct ether_header) + sizeof(struct ip));
-            sourcePort = ntohs(udpHeader->source);
-            destPort = ntohs(udpHeader->dest);
-            if (sourcePort == 53 || destPort == 53) {
-                dnsCount = dnsCount + 1;
-
-            }
-        } else if (ipHeader->ip_p == IPPROTO_ICMP) {
-            icmpCount = icmpCount + 1;
-        }
     }
 }
