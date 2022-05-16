@@ -36,7 +36,7 @@ int main(int argc, char **argv) {
     char errbuf[PCAP_ERRBUF_SIZE];
     char source[PCAP_BUF_SIZE];
     int i, maxCountSyn = 0, maxCountHttp = 0, maxIdxSyn = 0, maxIdxHttp = 0;
-    char lines[100][5][2048];
+    char lines[300][5][2048] = { "0", "0", "0", "0", "0" };
     int tot = 0;
     char line[1024];
 
@@ -68,17 +68,17 @@ int main(int argc, char **argv) {
         i++;
     }
 
-    tot=i;
+    // tot=i;
 
-    for (int i=0;i<tot;i++)
-    {
-        printf("first value %s\n", lines[i][0]);
-        printf("second value is %s\n", lines[i][1]);
-        printf("third value %s\n", lines[i][2]);
-        printf("fourth value is %s\n", lines[i][3]);
-        printf("fiveth value is %s\n", lines[i][4]);
-        printf("\n");
-    }
+    // for (int i=0;i<tot;i++)
+    // {
+    //     printf("first value %s\n", lines[i][0]);
+    //     printf("second value is %s\n", lines[i][1]);
+    //     printf("third value %s\n", lines[i][2]);
+    //     printf("fourth value is %s\n", lines[i][3]);
+    //     printf("fiveth value is %s\n", lines[i][4]);
+    //     printf("\n");
+    // }
     
     fp = pcap_open_offline(argv[1], errbuf);
     if (fp == NULL) {
@@ -87,7 +87,7 @@ int main(int argc, char **argv) {
     }
 
 
-    if (pcap_loop(fp, 100, packetHandler, NULL) < 0) {
+    if (pcap_loop(fp, 100, packetHandler, (u_char*)&lines) < 0) {
         fprintf(stderr, "\npcap_loop() failed: %s\n", pcap_geterr(fp));
         return 0;
     }
@@ -116,6 +116,7 @@ int main(int argc, char **argv) {
 
 void packetHandler(u_char *userData, const struct pcap_pkthdr* pkthdr, const u_char* packet) {
 
+    char (*lines)[5][2048] = (void*) userData;
     const struct ether_header* ethernetHeader;
     const struct ip* ipHeader;
     const struct tcphdr* tcpHeader;
@@ -125,7 +126,10 @@ void packetHandler(u_char *userData, const struct pcap_pkthdr* pkthdr, const u_c
     u_int sourcePort, destPort;
     u_char *data;
     int dataLength = 0;
+    int k = 0;
     int i;
+    char *tcpSourcePort = malloc (6);
+    char *tcpDestPort = malloc (6);
 
     ethernetHeader = (struct ether_header*)packet;
     if (ntohs(ethernetHeader->ether_type) == ETHERTYPE_IP) {
@@ -135,8 +139,36 @@ void packetHandler(u_char *userData, const struct pcap_pkthdr* pkthdr, const u_c
         inet_ntop(AF_INET, &(ipHeader->ip_dst), destIP, INET_ADDRSTRLEN);
 
         if (ipHeader->ip_p == IPPROTO_TCP) {
-            tcpCount = tcpCount + 1;
+
             tcpHeader = (struct tcphdr*)(packet + sizeof(struct ether_header) + sizeof(struct ip));
+
+            while(strcmp(lines[k][0], "0") == 1){
+
+                if(strcmp(lines[k][0], sourceIP) == 0){
+
+                    if(strcmp(lines[k][2], destIP) == 0){
+
+                        sourcePort = (u_int) ntohs(tcpHeader->source);
+                        sprintf (tcpSourcePort, "%u", sourcePort);
+
+                        if(strcmp(lines[k][1], tcpSourcePort) == 0){
+
+                            destPort = (u_int) ntohs(tcpHeader->dest);
+                            sprintf (tcpDestPort, "%u", destPort);
+
+                            if(strcmp(lines[k][3], tcpDestPort) == 0){
+                            
+                                printf("ALERT: %s\n", lines[k][4]);
+                            }
+                        }
+                    }
+                }
+
+                k++;
+            }
+
+            tcpCount = tcpCount + 1;
+            
             sourcePort = ntohs(tcpHeader->source);
             destPort = ntohs(tcpHeader->dest);
             data = (u_char*)(packet + sizeof(struct ether_header) + sizeof(struct ip) + sizeof(struct tcphdr));
